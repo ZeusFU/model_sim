@@ -193,15 +193,16 @@ for idx, (tab, (var_name, var_values)) in enumerate(zip([tab1, tab2, tab3, tab4]
         # Plotly figure (Line Chart with Dual Axes)
         fig = go.Figure()
         x_values = [v * 100 if var_name in ["Discount %", "Purchase to Payout Rate"] else v for v in var_values]
+        unit = "%" if var_name in ["Discount %", "Purchase to Payout Rate"] else "$"
         fig.add_trace(go.Scatter(
             x=x_values, y=price_margins, mode='lines+markers', name=var_name,
             line=dict(color="#488BF8"), marker=dict(size=8, line=dict(width=2, color='DarkSlateGrey')),
-            hovertemplate=f'{var_name}: %{{x:.2f}}{ "%" if var_name in ["Discount %", "Purchase to Payout Rate"] else "$" }}<br>Margin: %{{y:.4f}} (%{{y:.2%}})'
+            hovertemplate=f'{var_name}: {unit}%{{x:.2f}}<br>Margin: %{{y:.4f}} (%{{y:.2%}})'
         ))
         fig.add_trace(go.Scatter(
             x=x_values, y=discounted_margins, mode='lines+markers', name="Discounted Margin",
             line=dict(color="#A3C1FA"), marker=dict(size=8, line=dict(width=2, color='DarkSlateGrey')),
-            hovertemplate=f'{var_name}: %{{x:.2f}}{ "%" if var_name in ["Discount %", "Purchase to Payout Rate"] else "$" }}<br>Margin: %{{y:.4f}} (%{{y:.2%}})'
+            hovertemplate=f'{var_name}: {unit}%{{x:.2f}}<br>Margin: %{{y:.4f}} (%{{y:.2%}})'
         ))
         fig.add_hline(y=0.5, line_dash="dash", line_color="#F2CB80", annotation_text="50% Threshold")
         # Add vertical lines for thresholds
