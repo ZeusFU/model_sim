@@ -6,18 +6,18 @@ import pandas as pd
 # Fixed sample size
 SAMPLE_SIZE = 1000
 
-# Function to calculate margins
+# Function to calculate margins and additional financial metrics
 @st.cache_data
 def calculate_margins(eval_price, discount_pct, purchase_to_payout_rate, avg_payout):
-    revenue_eval = eval_price * SAMPLE_SIZE
+    revenue_eval = eval_price * SAMPLE_SIZE  # Gross Revenue (Eval Price)
     discounted_eval_price = eval_price * (1 - discount_pct)
-    revenue_discounted_eval = discounted_eval_price * SAMPLE_SIZE
-    cost = purchase_to_payout_rate * avg_payout * SAMPLE_SIZE
-    net_revenue = revenue_eval - cost
-    net_discounted_revenue = revenue_discounted_eval - cost
+    revenue_discounted_eval = discounted_eval_price * SAMPLE_SIZE  # Gross Revenue (Discounted)
+    cost = purchase_to_payout_rate * avg_payout * SAMPLE_SIZE  # Cost
+    net_revenue = revenue_eval - cost  # Net Revenue (Eval Price)
+    net_discounted_revenue = revenue_discounted_eval - cost  # Net Revenue (Discounted)
     price_margin = net_revenue / revenue_eval if revenue_eval > 0 else 0
     discounted_price_margin = net_discounted_revenue / revenue_discounted_eval if revenue_discounted_eval > 0 else 0
-    return price_margin, discounted_price_margin
+    return price_margin, discounted_price_margin, revenue_eval, revenue_discounted_eval, cost, net_revenue, net_discounted_revenue
 
 # Function to compute margins for a variable
 @st.cache_data
@@ -26,13 +26,13 @@ def compute_margins_for_variable(var_name, var_values, eval_price, discount_pct,
     discounted_margins = []
     for value in var_values:
         if var_name == "Eval Price":
-            pm, dpm = calculate_margins(value, discount_pct, purchase_to_payout_rate, avg_payout)
+            pm, dpm, _, _, _, _, _ = calculate_margins(value, discount_pct, purchase_to_payout_rate, avg_payout)
         elif var_name == "Discount %":
-            pm, dpm = calculate_margins(eval_price, value, purchase_to_payout_rate, avg_payout)
+            pm, dpm, _, _, _, _, _ = calculate_margins(eval_price, value, purchase_to_payout_rate, avg_payout)
         elif var_name == "Purchase to Payout Rate":
-            pm, dpm = calculate_margins(eval_price, discount_pct, value, avg_payout)
+            pm, dpm, _, _, _, _, _ = calculate_margins(eval_price, discount_pct, value, avg_payout)
         elif var_name == "Avg Payout":
-            pm, dpm = calculate_margins(eval_price, discount_pct, purchase_to_payout_rate, value)
+            pm, dpm, _, _, _, _, _ = calculate_margins(eval_price, discount_pct, purchase_to_payout_rate, value)
         price_margins.append(pm)
         discounted_margins.append(dpm)
     return price_margins, discounted_margins
@@ -44,7 +44,7 @@ def compute_aggregated_margins(purchase_to_payout_vars, avg_payout_vars, eval_pr
     discounted_margins = []
     labels = []
     for ptr, ap in zip(purchase_to_payout_vars, avg_payout_vars):
-        pm, dpm = calculate_margins(eval_price, discount_pct, ptr, ap)
+        pm, dpm, _, _, _, _, _ = calculate_margins(eval_price, discount_pct, ptr, ap)
         price_margins.append(pm)
         discounted_margins.append(dpm)
         labels.append(f"Ptr: {ptr*100:.2f}%, Avg Payout: ${ap:.2f}")
@@ -62,6 +62,35 @@ def find_margin_threshold(var_name, var_values, price_margins, discounted_margin
         if price_threshold is not None and discounted_threshold is not None:
             break
     return price_threshold, discounted_threshold
+
+# Function to find the value of a variable that results in a 50% Price Margin
+def find_50_percent_margin_value(var_name, eval_price, discount_pct, purchase_to_payout_rate, avg_payout):
+    # Define a range for the variable to test
+    if var_name == "Eval Price":
+        test_values = np.linspace(eval_price * 0.1, eval_price * 2, 1000)  # From 10% to 200% of base
+        for value in test_values:
+            pm, _, _, _, _, _, _ = calculate_margins(value, discount_pct, purchase_to_payout_rate, avg_payout)
+            if abs(pm - 0.5) < 0.001:  # Close to 50%
+                return value
+    elif var_name == "Discount %":
+        test_values = np.linspace(0, 0.99, 1000)  # From 0% to 99%
+        for value in test_values:
+            pm, _, _, _, _, _, _ = calculate_margins(eval_price, value, purchase_to_payout_rate, avg_payout)
+            if abs(pm - 0.5) < 0.001:
+                return value
+    elif var_name == "Purchase to Payout Rate":
+        test_values = np.linspace(0, 0.99, 1000)  # From 0% to 99%
+        for value in test_values:
+            pm, _, _, _, _, _, _ = calculate_margins(eval_price, discount_pct, value, avg_payout)
+            if abs(pm - 0.5) < 0.001:
+                return value
+    elif var_name == "Avg Payout":
+        test_values = np.linspace(avg_payout * 0.1, avg_payout * 10, 1000)  # From 10% to 1000% of base
+        for value in test_values:
+            pm, _, _, _, _, _, _ = calculate_margins(eval_price, discount_pct, purchase_to_payout_rate, value)
+            if abs(pm - 0.5) < 0.001:
+                return value
+    return None  # If no value results in exactly 50% margin
 
 # Streamlit app
 st.set_page_config(page_title="Margin Simulator", layout="wide")
@@ -138,20 +167,26 @@ st.sidebar.markdown("**Avg Payout**: Average payout amount per funded account (d
 avg_payout = st.sidebar.number_input("Avg. Payout Amount", min_value=0.0, value=default_avg_payout, step=1.0)
 
 # Calculate base values
-discounted_eval_price = eval_price * (1 - discount_pct)
 purchase_to_payout_rate = eval_pass_rate * sim_funded_rate
-base_pm, base_dpm = calculate_margins(eval_price, discount_pct, purchase_to_payout_rate, avg_payout)
+base_pm, base_dpm, gross_revenue, gross_discounted_revenue, cost, net_revenue, net_discounted_revenue = calculate_margins(
+    eval_price, discount_pct, purchase_to_payout_rate, avg_payout
+)
 
-# Display base calculation
+# Display base calculation with additional metrics
 st.header("Base Calculation")
 col1, col2, col3 = st.columns(3)
 with col1:
     st.write(f"**Account Size:** {account_size}")
     st.write(f"**Eval Price:** ${eval_price:.2f}")
+    st.write(f"**Gross Revenue (Eval Price):** ${gross_revenue:,.2f}")
+    st.write(f"**Net Revenue (Eval Price):** ${net_revenue:,.2f}")
 with col2:
-    st.write(f"**Calculated Discounted Eval Price:** ${discounted_eval_price:.2f}")
+    st.write(f"**Calculated Discounted Eval Price:** ${eval_price * (1 - discount_pct):.2f}")
+    st.write(f"**Gross Revenue (Discounted):** ${gross_discounted_revenue:,.2f}")
+    st.write(f"**Net Revenue (Discounted):** ${net_discounted_revenue:,.2f}")
     st.write(f"**Purchase to Payout Rate:** {purchase_to_payout_rate*100:.4f}%")
 with col3:
+    st.write(f"**Cost:** ${cost:,.2f}")
     st.write(f"**Price Margin:** {base_pm:.4f} ({base_pm*100:.2f}%)")
     st.write(f"**Discounted Price Margin:** {base_dpm:.4f} ({base_dpm*100:.2f}%)")
 
@@ -186,6 +221,28 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 for idx, (tab, (var_name, var_values)) in enumerate(zip([tab1, tab2, tab3, tab4], variables)):
     with tab:
         st.subheader(f"{var_name} Simulation")
+        # Explanation for each simulation
+        if var_name == "Eval Price":
+            st.markdown("""
+                **What’s Happening?**  
+                This simulation shows how changing the Eval Price (the price charged for evaluations) affects your profit margins. A lower Eval Price reduces revenue, potentially lowering margins, while a higher Eval Price increases revenue but may not offset costs if payouts remain high.
+            """)
+        elif var_name == "Discount %":
+            st.markdown("""
+                **What’s Happening?**  
+                This simulation explores the impact of offering a discount on the Eval Price. A higher discount reduces the effective price, lowering revenue and thus margins, especially for the Discounted Price Margin.
+            """)
+        elif var_name == "Purchase to Payout Rate":
+            st.markdown("""
+                **What’s Happening?**  
+                The Purchase to Payout Rate (Eval Pass Rate × Sim Funded Rate) represents the percentage of evaluations that result in payouts. A higher rate increases costs (more payouts), which can significantly reduce margins if revenue doesn’t increase proportionally.
+            """)
+        elif var_name == "Avg Payout":
+            st.markdown("""
+                **What’s Happening?**  
+                This simulation examines how the average payout amount per funded account affects margins. Higher payouts increase costs, reducing margins, while lower payouts help maintain profitability by keeping costs down.
+            """)
+
         price_margins, discounted_margins = compute_margins_for_variable(
             var_name, var_values, eval_price, discount_pct, purchase_to_payout_rate, avg_payout
         )
@@ -248,6 +305,10 @@ for idx, (tab, (var_name, var_values)) in enumerate(zip([tab1, tab2, tab3, tab4]
 # Aggregated simulation for Purchase to Payout Rate and Avg Payout (Tab 5)
 with tab5:
     st.subheader("Aggregated Simulation: Purchase to Payout Rate vs Avg Payout")
+    st.markdown("""
+        **What’s Happening?**  
+        This simulation combines the effects of Purchase to Payout Rate and Avg Payout, showing how both variables together impact margins. Each bar represents a combination of these two factors, helping you see how increasing both payout rates and amounts affects profitability.
+    """)
     # Use the same variation ranges as individual simulations
     price_margins, discounted_margins, labels = compute_aggregated_margins(
         purchase_to_payout_rate_vars, avg_payout_vars, eval_price, discount_pct
@@ -310,6 +371,10 @@ with tab5:
 # Combined simulation with user-selected variables (Tab 6)
 with tab6:
     st.subheader("Combined Simulation")
+    st.markdown("""
+        **What’s Happening?**  
+        This simulation lets you adjust all variables at once to see their combined effect on margins. You can increase or decrease each parameter by a percentage to simulate different scenarios, helping you understand how multiple factors interact to impact profitability.
+    """)
     st.write("Select percentage changes for each variable (0% for no change):")
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
@@ -329,7 +394,7 @@ with tab6:
     combined_purchase_to_payout_rate = min(1.0, eval_pass_rate * (1 + eval_pass_rate_change) * sim_funded_rate * (1 + sim_funded_rate_change))
     combined_avg_payout = avg_payout * (1 + avg_payout_change)
 
-    combined_pm, combined_dpm = calculate_margins(
+    combined_pm, combined_dpm, _, _, _, _, _ = calculate_margins(
         combined_eval_price, combined_discount_pct, combined_purchase_to_payout_rate, combined_avg_payout
     )
 
@@ -352,18 +417,51 @@ with tab6:
 # Extreme cases for each variable (Tab 7)
 with tab7:
     st.subheader("Extreme Case Scenarios")
-    st.write("Each scenario uses the extreme value for one variable while keeping others at base values:")
+    st.markdown("""
+        **What’s Happening?**  
+        This section shows the value of each variable that results in a 50% Price Margin, while keeping other variables at their base values. It helps you identify the tipping point where profitability is exactly at 50%, providing insight into critical thresholds for each factor.
+    """)
+    st.write("Each scenario adjusts one variable to achieve a 50% Price Margin:")
     extreme_scenarios = [
-        ("Eval Price (-50%)", eval_price * 0.5, discount_pct, purchase_to_payout_rate, avg_payout),
-        ("Discount % (+50%)", eval_price, min(1.0, discount_pct + 0.5), purchase_to_payout_rate, avg_payout),
-        ("Purchase to Payout Rate (+500%)", eval_price, discount_pct, min(1.0, purchase_to_payout_rate * 6), avg_payout),
-        ("Avg Payout (+200%)", eval_price, discount_pct, purchase_to_payout_rate, avg_payout * 3)
+        ("Eval Price (50% Margin)", "Eval Price", eval_price, discount_pct, purchase_to_payout_rate, avg_payout),
+        ("Discount % (50% Margin)", "Discount %", eval_price, discount_pct, purchase_to_payout_rate, avg_payout),
+        ("Purchase to Payout Rate (50% Margin)", "Purchase to Payout Rate", eval_price, discount_pct, purchase_to_payout_rate, avg_payout),
+        ("Avg Payout (50% Margin)", "Avg Payout", eval_price, discount_pct, purchase_to_payout_rate, avg_payout)
     ]
 
     data = []
-    for name, ep, dp, ptr, ap in extreme_scenarios:
-        pm, dpm = calculate_margins(ep, dp, ptr, ap)
-        data.append([name, f"${ep:.2f}", f"{dp*100:.2f}%", f"{ptr*100:.4f}%", f"${ap:.2f}", f"{pm:.4f} ({pm*100:.2f}%)", f"{dpm:.4f} ({dpm*100:.2f}%)"])
+    for name, var_name, ep, dp, ptr, ap in extreme_scenarios:
+        # Find the value that results in a 50% Price Margin
+        target_value = find_50_percent_margin_value(var_name, ep, dp, ptr, ap)
+        if target_value is not None:
+            if var_name == "Eval Price":
+                ep = target_value
+            elif var_name == "Discount %":
+                dp = target_value
+            elif var_name == "Purchase to Payout Rate":
+                ptr = target_value
+            elif var_name == "Avg Payout":
+                ap = target_value
+            pm, dpm, _, _, _, _, _ = calculate_margins(ep, dp, ptr, ap)
+            data.append([
+                name,
+                f"${ep:.2f}",
+                f"{dp*100:.2f}%",
+                f"{ptr*100:.4f}%",
+                f"${ap:.2f}",
+                f"{pm:.4f} ({pm*100:.2f}%)",
+                f"{dpm:.4f} ({dpm*100:.2f}%)"
+            ])
+        else:
+            data.append([
+                name,
+                f"${ep:.2f}",
+                f"{dp*100:.2f}%",
+                f"{ptr*100:.4f}%",
+                f"${ap:.2f}",
+                "Not achievable",
+                "Not achievable"
+            ])
 
     st.table({
         "Scenario": [row[0] for row in data],
