@@ -51,12 +51,12 @@ avg_payout = st.sidebar.number_input("Avg. Payout Amount", min_value=0.0, value=
 discounted_eval_price = eval_price * (1 - discount_pct)
 st.write(f"**Calculated Discounted Eval Price:** {discounted_eval_price:.2f}")
 
-# Variation ranges (Eval Price lower, others higher)
-eval_price_vars = [eval_price * (1 - x) for x in [0.1, 0.2, 0.3, 0.4, 0.5]]  # -10% to -50%
-discount_pct_vars = [max(0, min(1, discount_pct * (1 + x))) for x in [0.1, 0.2, 0.3, 0.4, 0.5]]  # +10% to +50%
-eval_pass_rate_vars = [max(0, min(1, eval_pass_rate * (1 + x))) for x in [0.1, 0.2, 0.3, 0.4, 0.5]]  # +10% to +50%
-sim_funded_rate_vars = [max(0, min(1, sim_funded_rate * (1 + x))) for x in [0.1, 0.2, 0.3, 0.4, 0.5]]  # +10% to +50%
-avg_payout_vars = [avg_payout * (1 + x) for x in [0.1, 0.2, 0.3, 0.4, 0.5]]  # +10% to +50%
+# Variation ranges with more points (finer increments)
+eval_price_vars = [eval_price * (1 - x) for x in np.arange(0, 0.51, 0.05)]  # 0% to -50% in 5% steps
+discount_pct_vars = [max(0, min(1, discount_pct * (1 + x))) for x in np.arange(0, 0.51, 0.05)]  # 0% to +50% in 5% steps
+eval_pass_rate_vars = [max(0, min(1, eval_pass_rate * (1 + x))) for x in np.arange(0, 0.51, 0.05)]  # 0% to +50% in 5% steps
+sim_funded_rate_vars = [max(0, min(1, sim_funded_rate * (1 + x))) for x in np.arange(0, 0.51, 0.05)]  # 0% to +50% in 5% steps
+avg_payout_vars = [avg_payout * (1 + x) for x in np.arange(0, 0.51, 0.05)]  # 0% to +50% in 5% steps
 
 variables = [
     ("Eval Price", eval_price_vars),
@@ -93,18 +93,18 @@ for var_name, var_values in variables:
 
 # Combined simulation with user-selected variables
 st.header("Combined Simulation")
-st.write("Select percentage increases for each variable (0% for no change):")
+st.write("Select percentage changes for each variable (0% for no change):")
 col1, col2, col3, col4, col5 = st.columns(5)
 with col1:
-    eval_price_change = -st.slider("Eval Price Decrease (%)", 0, 50, 0, step=10) / 100  # Negative for decrease
+    eval_price_change = -st.slider("Eval Price Decrease (%)", 0, 50, 0, step=5) / 100  # Negative for decrease
 with col2:
-    discount_pct_change = st.slider("Discount % Increase (%)", 0, 50, 0, step=10) / 100
+    discount_pct_change = st.slider("Discount % Increase (%)", 0, 50, 0, step=5) / 100
 with col3:
-    eval_pass_rate_change = st.slider("Eval Pass Rate Increase (%)", 0, 50, 0, step=10) / 100
+    eval_pass_rate_change = st.slider("Eval Pass Rate Increase (%)", 0, 50, 0, step=5) / 100
 with col4:
-    sim_funded_rate_change = st.slider("Sim Funded Rate Increase (%)", 0, 50, 0, step=10) / 100
+    sim_funded_rate_change = st.slider("Sim Funded Rate Increase (%)", 0, 50, 0, step=5) / 100
 with col5:
-    avg_payout_change = st.slider("Avg Payout Increase (%)", 0, 50, 0, step=10) / 100
+    avg_payout_change = st.slider("Avg Payout Increase (%)", 0, 50, 0, step=5) / 100
 
 # Calculate combined scenario
 combined_eval_price = eval_price * (1 + eval_price_change)
@@ -130,14 +130,29 @@ if combined_pm >= 0.5 and combined_dpm >= 0.5:
 elif combined_pm < 0.5 or combined_dpm < 0.5:
     st.warning("One or both margins are below 50%.")
 
-# Extreme case
-st.header("Extreme Case (High Cost Scenario)")
-extreme_pm, extreme_dpm = calculate_margins(
-    eval_price * 0.5,  # -50%
-    min(1.0, discount_pct * 1.5),  # +50%
-    min(1.0, eval_pass_rate * 1.5),  # +50%
-    min(1.0, sim_funded_rate * 1.5),  # +50%
-    avg_payout * 1.5  # +50%
-)
-st.write(f"Price Margin: {extreme_pm:.4f} ({extreme_pm*100:.2f}%)")
-st.write(f"Discounted Price Margin: {extreme_dpm:.4f} ({extreme_dpm*100:.2f}%)")
+# Extreme cases for each variable
+st.header("Extreme Case Scenarios (Individual Variables)")
+st.write("Each scenario uses the extreme value for one variable while keeping others at base values:")
+extreme_scenarios = [
+    ("Eval Price (-50%)", eval_price * 0.5, discount_pct, eval_pass_rate, sim_funded_rate, avg_payout),
+    ("Discount % (+50%)", eval_price, min(1.0, discount_pct * 1.5), eval_pass_rate, sim_funded_rate, avg_payout),
+    ("Eval Pass Rate (+50%)", eval_price, discount_pct, min(1.0, eval_pass_rate * 1.5), sim_funded_rate, avg_payout),
+    ("Sim Funded Rate (+50%)", eval_price, discount_pct, eval_pass_rate, min(1.0, sim_funded_rate * 1.5), avg_payout),
+    ("Avg Payout (+50%)", eval_price, discount_pct, eval_pass_rate, sim_funded_rate, avg_payout * 1.5)
+]
+
+data = []
+for name, ep, dp, epr, sfr, ap in extreme_scenarios:
+    pm, dpm = calculate_margins(ep, dp, epr, sfr, ap)
+    data.append([name, f"{ep:.2f}", f"{dp*100:.2f}%", f"{epr*100:.2f}%", f"{sfr*100:.2f}%", f"{ap:.2f}", f"{pm:.4f} ({pm*100:.2f}%)", f"{dpm:.4f} ({dpm*100:.2f}%)"])
+
+st.table({
+    "Scenario": [row[0] for row in data],
+    "Eval Price": [row[1] for row in data],
+    "Discount %": [row[2] for row in data],
+    "Eval Pass Rate": [row[3] for row in data],
+    "Sim Funded Rate": [row[4] for row in data],
+    "Avg Payout": [row[5] for row in data],
+    "Price Margin": [row[6] for row in data],
+    "Discounted Price Margin": [row[7] for row in data]
+})
