@@ -32,16 +32,13 @@ def get_percentage_input(prompt):
 print("Please enter the following values from your sheet:")
 BASE_EVAL_PRICE = get_float_input("Eval Price: ", min_val=0)
 BASE_DISCOUNT_PCT = get_percentage_input("Discount % (e.g., 30 for 30%): ")
-BASE_DISCOUNTED_EVAL_PRICE = get_float_input("Discounted Eval Price: ", min_val=0)
 BASE_EVAL_PASS_RATE = get_percentage_input("Eval Pass Rate (e.g., 27.01 for 27.01%): ")
 BASE_SIM_FUNDED_RATE = get_percentage_input("Sim Funded to Payout Rate (e.g., 4.8 for 4.8%): ")
 BASE_AVG_PAYOUT = get_float_input("Avg. Payout Amount: ", min_val=0)
 
-# Validate Discounted Eval Price consistency
-expected_discounted_price = BASE_EVAL_PRICE * (1 - BASE_DISCOUNT_PCT)
-if abs(BASE_DISCOUNTED_EVAL_PRICE - expected_discounted_price) > 0.01:  # Allow small rounding difference
-    print(f"Warning: Discounted Eval Price ({BASE_DISCOUNTED_EVAL_PRICE}) does not match "
-          f"Eval Price ({BASE_EVAL_PRICE}) with Discount % ({BASE_DISCOUNT_PCT*100:.2f}%). Expected: {expected_discounted_price:.2f}")
+# Calculate Discounted Eval Price
+BASE_DISCOUNTED_EVAL_PRICE = BASE_EVAL_PRICE * (1 - BASE_DISCOUNT_PCT)
+print(f"Calculated Discounted Eval Price: {BASE_DISCOUNTED_EVAL_PRICE:.2f}")
 
 # Function to calculate margins
 def calculate_margins(eval_price, discount_pct, eval_pass_rate, sim_funded_rate, avg_payout):
