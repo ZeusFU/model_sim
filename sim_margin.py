@@ -88,25 +88,26 @@ st.markdown("""
 with st.expander("Welcome to the Margin Simulator", expanded=True):
     st.markdown("""
         This app helps you simulate profit margins for different account sizes by adjusting key variables like Discount %, Eval Pass Rate, Sim Funded Rate, and Avg Payout. 
-        - Select an account size to set the Eval Price.
+        - Select an account size to set the Eval Price and default Avg Payout.
         - Adjust other parameters in the sidebar.
         - Explore individual and aggregated simulations to understand margin impacts.
         - Download results for further analysis.
     """)
 
-# Account size profiles with fixed Eval Price
+# Account size profiles with fixed Eval Price and preset Avg Payout
 account_sizes = {
-    "25k": 150.0,
-    "50k": 170.0,
-    "75k": 245.0,
-    "100k": 330.0,
-    "150k": 360.0
+    "25k": {"eval_price": 150.0, "avg_payout": 750.0},
+    "50k": {"eval_price": 170.0, "avg_payout": 1250.0},
+    "75k": {"eval_price": 245.0, "avg_payout": 2000.0},
+    "100k": {"eval_price": 330.0, "avg_payout": 2500.0},
+    "150k": {"eval_price": 360.0, "avg_payout": 3750.0}
 }
 
 st.sidebar.header("Input Parameters")
-st.sidebar.markdown("**Account Size**: Select the account size to set the Eval Price.")
-account_size = st.sidebar.selectbox("Account Size", list(account_sizes.keys()), index=0)
-eval_price = account_sizes[account_size]  # Fixed Eval Price based on selection
+st.sidebar.markdown("**Account Size**: Select the account size to set the Eval Price and default Avg Payout.")
+account_size = st.sidebar.selectbox("Account Size", list(account_sizes.keys()), index=0, key="account_size")
+eval_price = account_sizes[account_size]["eval_price"]  # Fixed Eval Price based on selection
+default_avg_payout = account_sizes[account_size]["avg_payout"]  # Default Avg Payout based on selection
 st.sidebar.write(f"Eval Price (fixed): ${eval_price:.2f}")
 
 st.sidebar.markdown("**Discount %**: Percentage discount applied to Eval Price (0-100%).")
@@ -118,34 +119,8 @@ eval_pass_rate = st.sidebar.number_input("Eval Pass Rate (e.g., 27.01 for 27.01%
 st.sidebar.markdown("**Sim Funded Rate**: Percentage of passed evaluations that lead to payouts (0-100%).")
 sim_funded_rate = st.sidebar.number_input("Sim Funded to Payout Rate (e.g., 4.8 for 4.8%)", min_value=0.0, max_value=100.0, value=4.8, step=0.01) / 100
 
-st.sidebar.markdown("**Avg Payout**: Average payout amount per funded account.")
-avg_payout = st.sidebar.number_input("Avg. Payout Amount", min_value=0.0, value=750.0, step=1.0)
-
-# Preset Scenarios
-st.sidebar.header("Preset Scenarios")
-col1, col2 = st.sidebar.columns(2)
-with col1:
-    if st.button("High Risk"):
-        st.session_state.discount_pct = 50.0 / 100
-        st.session_state.eval_pass_rate = 40.0 / 100
-        st.session_state.sim_funded_rate = 10.0 / 100
-        st.session_state.avg_payout = 1000.0
-with col2:
-    if st.button("Low Risk"):
-        st.session_state.discount_pct = 20.0 / 100
-        st.session_state.eval_pass_rate = 20.0 / 100
-        st.session_state.sim_funded_rate = 3.0 / 100
-        st.session_state.avg_payout = 500.0
-
-# Apply session state if set
-if "discount_pct" in st.session_state:
-    discount_pct = st.session_state.discount_pct
-if "eval_pass_rate" in st.session_state:
-    eval_pass_rate = st.session_state.eval_pass_rate
-if "sim_funded_rate" in st.session_state:
-    sim_funded_rate = st.session_state.sim_funded_rate
-if "avg_payout" in st.session_state:
-    avg_payout = st.session_state.avg_payout
+st.sidebar.markdown("**Avg Payout**: Average payout amount per funded account (default set by account size).")
+avg_payout = st.sidebar.number_input("Avg. Payout Amount", min_value=0.0, value=default_avg_payout, step=1.0)
 
 # Calculate base values
 discounted_eval_price = eval_price * (1 - discount_pct)
@@ -267,7 +242,7 @@ with st.expander("Scatter and 3D Views", expanded=True):
         marker=dict(
             size=10,
             color=price_margins,
-            colorscale='Plasma',  # Colorblind-friendly
+            colorscale='Plasma',
             showscale=True,
             colorbar=dict(title="Price Margin"),
             cmin=0,
