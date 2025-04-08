@@ -37,8 +37,19 @@ def compute_margins_for_variable(var_name, var_values, eval_price, discount_pct,
 # Streamlit app
 st.title("Interactive Margin Simulator")
 
+# Account size profiles with fixed Eval Price
+account_sizes = {
+    "25k": 150.0,
+    "50k": 170.0,
+    "75k": 245.0,
+    "100k": 330.0,
+    "150k": 360.0
+}
+
 st.sidebar.header("Input Parameters")
-eval_price = st.sidebar.number_input("Eval Price", min_value=0.0, value=150.0, step=1.0)
+account_size = st.sidebar.selectbox("Account Size", list(account_sizes.keys()), index=0)
+eval_price = account_sizes[account_size]  # Fixed Eval Price based on selection
+st.sidebar.write(f"Eval Price (fixed): ${eval_price:.2f}")
 discount_pct = st.sidebar.number_input("Discount % (e.g., 30 for 30%)", min_value=0.0, max_value=100.0, value=30.0, step=1.0) / 100
 eval_pass_rate = st.sidebar.number_input("Eval Pass Rate (e.g., 27.01 for 27.01%)", min_value=0.0, max_value=100.0, value=27.01, step=0.01) / 100
 sim_funded_rate = st.sidebar.number_input("Sim Funded to Payout Rate (e.g., 4.8 for 4.8%)", min_value=0.0, max_value=100.0, value=4.8, step=0.01) / 100
@@ -51,20 +62,18 @@ base_pm, base_dpm = calculate_margins(eval_price, discount_pct, purchase_to_payo
 
 # Display base calculation
 st.header("Base Calculation")
-st.write(f"**Calculated Discounted Eval Price:** {discounted_eval_price:.2f}")
+st.write(f"**Account Size:** {account_size}")
+st.write(f"**Eval Price:** ${eval_price:.2f}")
+st.write(f"**Calculated Discounted Eval Price:** ${discounted_eval_price:.2f}")
 st.write(f"**Purchase to Payout Rate:** {purchase_to_payout_rate*100:.4f}% (Eval Pass Rate * Sim Funded Rate)")
 st.write(f"**Price Margin:** {base_pm:.4f} ({base_pm*100:.2f}%)")
 st.write(f"**Discounted Price Margin:** {base_dpm:.4f} ({base_dpm*100:.2f}%)")
 
 # Variation ranges with 20 steps
-eval_price_vars = [eval_price * (1 - x) for x in np.linspace(0, 0.5, 20)]  # 150 to 75
-discount_pct_vars = [max(0, min(1, discount_pct + (0.5 * x))) for x in np.linspace(0, 1, 20)]  # 30% to 80%
-purchase_to_payout_rate_vars = [max(0, min(1, purchase_to_payout_rate * (1 + 2 * x))) for x in np.linspace(0, 1, 20)]  # Base to 200% increase
+eval_price_vars = [eval_price * (1 - x) for x in np.linspace(0, 0.5, 20)]  # Base to -50%
+discount_pct_vars = [max(0, min(1, discount_pct + (0.5 * x))) for x in np.linspace(0, 1, 20)]  # Base to 80%
+purchase_to_payout_rate_vars = [max(0, min(1, purchase_to_payout_rate * (1 + 5 * x))) for x in np.linspace(0, 1, 20)]  # Base to 500% increase
 avg_payout_vars = [avg_payout * (1 + 2 * x) for x in np.linspace(0, 1, 20)]  # Base to 200% increase
-
-# Uncomment below if needed later
-# eval_pass_rate_vars = [max(0, min(1, eval_pass_rate * (1 + x))) for x in np.linspace(0, 0.5, 20)]  # 0% to +50% in 20 steps
-# sim_funded_rate_vars = [max(0, min(1, sim_funded_rate * (1 + x))) for x in np.linspace(0, 0.5, 20)]  # 0% to +50% in 20 steps
 
 variables = [
     ("Eval Price", eval_price_vars),
@@ -124,10 +133,10 @@ combined_pm, combined_dpm = calculate_margins(
 )
 
 st.subheader("Combined Scenario Results")
-st.write(f"Eval Price: {combined_eval_price:.2f}")
+st.write(f"Eval Price: ${combined_eval_price:.2f}")
 st.write(f"Discount %: {combined_discount_pct*100:.2f}%")
 st.write(f"Purchase to Payout Rate: {combined_purchase_to_payout_rate*100:.4f}%")
-st.write(f"Avg Payout: {combined_avg_payout:.2f}")
+st.write(f"Avg Payout: ${combined_avg_payout:.2f}")
 st.write(f"**Price Margin:** {combined_pm:.4f} ({combined_pm*100:.2f}%)")
 st.write(f"**Discounted Price Margin:** {combined_dpm:.4f} ({combined_dpm*100:.2f}%)")
 if combined_pm >= 0.5 and combined_dpm >= 0.5:
@@ -140,15 +149,15 @@ st.header("Extreme Case Scenarios (Individual Variables)")
 st.write("Each scenario uses the extreme value for one variable while keeping others at base values:")
 extreme_scenarios = [
     ("Eval Price (-50%)", eval_price * 0.5, discount_pct, purchase_to_payout_rate, avg_payout),
-    ("Discount % (+50%)", eval_price, min(1.0, discount_pct + 0.5), purchase_to_payout_rate, avg_payout),  # +50% absolute increase
-    ("Purchase to Payout Rate (+200%)", eval_price, discount_pct, min(1.0, purchase_to_payout_rate * 3), avg_payout),
+    ("Discount % (+50%)", eval_price, min(1.0, discount_pct + 0.5), purchase_to_payout_rate, avg_payout),
+    ("Purchase to Payout Rate (+500%)", eval_price, discount_pct, min(1.0, purchase_to_payout_rate * 6), avg_payout),
     ("Avg Payout (+200%)", eval_price, discount_pct, purchase_to_payout_rate, avg_payout * 3)
 ]
 
 data = []
 for name, ep, dp, ptr, ap in extreme_scenarios:
     pm, dpm = calculate_margins(ep, dp, ptr, ap)
-    data.append([name, f"{ep:.2f}", f"{dp*100:.2f}%", f"{ptr*100:.4f}%", f"{ap:.2f}", f"{pm:.4f} ({pm*100:.2f}%)", f"{dpm:.4f} ({dpm*100:.2f}%)"])
+    data.append([name, f"${ep:.2f}", f"{dp*100:.2f}%", f"{ptr*100:.4f}%", f"${ap:.2f}", f"{pm:.4f} ({pm*100:.2f}%)", f"{dpm:.4f} ({dpm*100:.2f}%)"])
 
 st.table({
     "Scenario": [row[0] for row in data],
