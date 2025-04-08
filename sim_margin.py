@@ -42,11 +42,13 @@ def compute_margins_for_variable(var_name, var_values, eval_price, discount_pct,
 def compute_aggregated_margins(purchase_to_payout_vars, avg_payout_vars, eval_price, discount_pct):
     price_margins = []
     discounted_margins = []
+    labels = []
     for ptr, ap in zip(purchase_to_payout_vars, avg_payout_vars):
         pm, dpm = calculate_margins(eval_price, discount_pct, ptr, ap)
         price_margins.append(pm)
         discounted_margins.append(dpm)
-    return price_margins, discounted_margins
+        labels.append(f"Ptr: {ptr*100:.2f}%, Avg Payout: ${ap:.2f}")
+    return price_margins, discounted_margins, labels
 
 # Function to find the first point where margin falls below 50%
 def find_margin_threshold(var_name, var_values, price_margins, discounted_margins):
@@ -81,6 +83,19 @@ st.markdown("""
     h1, h2, h3 {
         color: #488BF8;
     }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #262730;
+        border-radius: 20px;
+        padding: 8px 16px;
+        color: #FAFAFA;
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        background-color: #488BF8;
+        color: #FAFAFA;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -90,7 +105,7 @@ with st.expander("Welcome to the Margin Simulator", expanded=True):
         This app helps you simulate profit margins for different account sizes by adjusting key variables like Discount %, Eval Pass Rate, Sim Funded Rate, and Avg Payout. 
         - Select an account size to set the Eval Price and default Avg Payout.
         - Adjust other parameters in the sidebar.
-        - Explore individual and aggregated simulations to understand margin impacts.
+        - Explore individual and aggregated simulations to understand margin impacts using the tabs below.
         - Download results for further analysis.
     """)
 
@@ -160,26 +175,33 @@ variables = [
     ("Avg Payout", avg_payout_vars)
 ]
 
-# Individual simulations with Plotly
-st.header("Individual Variable Simulations")
-for var_name, var_values in variables:
-    with st.expander(f"{var_name} Simulation", expanded=True):
+# Tabbed interface for simulations
+st.header("Simulations")
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "Eval Price", "Discount %", "Purchase to Payout Rate", "Avg Payout", 
+    "Aggregated (Ptr vs Avg Payout)", "Combined", "Extreme Cases"
+])
+
+# Individual simulations with Plotly (Tabs 1-4)
+for idx, (tab, (var_name, var_values)) in enumerate(zip([tab1, tab2, tab3, tab4], variables)):
+    with tab:
+        st.subheader(f"{var_name} Simulation")
         price_margins, discounted_margins = compute_margins_for_variable(
             var_name, var_values, eval_price, discount_pct, purchase_to_payout_rate, avg_payout
         )
         
-        # Plotly figure
+        # Plotly figure (Line Chart with Dual Axes)
         fig = go.Figure()
         x_values = [v * 100 if var_name in ["Discount %", "Purchase to Payout Rate"] else v for v in var_values]
         fig.add_trace(go.Scatter(
             x=x_values, y=price_margins, mode='lines+markers', name=var_name,
             line=dict(color="#488BF8"), marker=dict(size=8, line=dict(width=2, color='DarkSlateGrey')),
-            hovertemplate='%{x:.2f}<br>Margin: %{y:.4f} (%{y:.2%})'
+            hovertemplate=f'{var_name}: %{{x:.2f}}{ "%" if var_name in ["Discount %", "Purchase to Payout Rate"] else "$" }}<br>Margin: %{{y:.4f}} (%{{y:.2%}})'
         ))
         fig.add_trace(go.Scatter(
             x=x_values, y=discounted_margins, mode='lines+markers', name="Discounted Margin",
             line=dict(color="#A3C1FA"), marker=dict(size=8, line=dict(width=2, color='DarkSlateGrey')),
-            hovertemplate='%{x:.2f}<br>Margin: %{y:.4f} (%{y:.2%})'
+            hovertemplate=f'{var_name}: %{{x:.2f}}{ "%" if var_name in ["Discount %", "Purchase to Payout Rate"] else "$" }}<br>Margin: %{{y:.4f}} (%{{y:.2%}})'
         ))
         fig.add_hline(y=0.5, line_dash="dash", line_color="#F2CB80", annotation_text="50% Threshold")
         # Add vertical lines for thresholds
@@ -190,9 +212,9 @@ for var_name, var_values in variables:
             fig.add_vline(x=discounted_threshold, line_dash="dash", line_color="#F9E4B7", annotation_text="Discounted < 50%")
         fig.update_layout(
             title=f"Effect of {var_name} on Margins",
-            xaxis_title=f"{var_name} ({'%' if var_name in ['Discount %', 'Purchase to Payout Rate'] else ''})",
+            xaxis_title=f"{var_name} ({'%' if var_name in ['Discount %', 'Purchase to Payout Rate'] else '$'})",
             yaxis_title="Margin",
-            yaxis_range=[0, 1.2],
+            yaxis_range=[-1.5, 1.2],
             hovermode="x unified",
             showlegend=True,
             plot_bgcolor='rgba(0,0,0,0)',
@@ -222,83 +244,46 @@ for var_name, var_values in variables:
         csv = df.to_csv(index=False)
         st.download_button(f"Download {var_name} Simulation Data", csv, f"{var_name.lower().replace(' ', '_')}_simulation.csv", "text/csv")
 
-# Aggregated simulation for Purchase to Payout Rate and Avg Payout as a Scatter Chart
-st.header("Aggregated Simulation: Purchase to Payout Rate vs Avg Payout")
-with st.expander("Scatter and 3D Views", expanded=True):
+# Aggregated simulation for Purchase to Payout Rate and Avg Payout (Tab 5)
+with tab5:
+    st.subheader("Aggregated Simulation: Purchase to Payout Rate vs Avg Payout")
     # Use the same variation ranges as individual simulations
-    price_margins, discounted_margins = compute_aggregated_margins(
+    price_margins, discounted_margins, labels = compute_aggregated_margins(
         purchase_to_payout_rate_vars, avg_payout_vars, eval_price, discount_pct
     )
-    x_values = [v * 100 for v in purchase_to_payout_rate_vars]  # Convert to percentage
-    y_values = avg_payout_vars
 
-    # Scatter Plot
-    st.subheader("Scatter Plot (Color by Price Margin)")
-    fig_scatter = go.Figure()
-    fig_scatter.add_trace(go.Scatter(
-        x=x_values,
-        y=y_values,
-        mode='markers',
-        marker=dict(
-            size=10,
-            color=price_margins,
-            colorscale='Plasma',
-            showscale=True,
-            colorbar=dict(title="Price Margin"),
-            cmin=0,
-            cmax=1
-        ),
+    # Grouped Bar Chart
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels,
+        y=price_margins,
         name="Price Margin",
-        text=[f"Price Margin: {pm:.4f} ({pm*100:.2f}%)<br>Discounted Margin: {dpm:.4f} ({dpm*100:.2f}%)"
-              for pm, dpm in zip(price_margins, discounted_margins)],
-        hovertemplate='Purchase to Payout Rate: %{x:.2f}%<br>Avg Payout: ${%y:.2f}<br>%{text}'
+        marker_color="#488BF8",
+        hovertemplate='%{x}<br>Margin: %{y:.4f} (%{y:.2%})'
     ))
-    fig_scatter.update_layout(
-        title="Purchase to Payout Rate vs Avg Payout (Color by Price Margin)",
-        xaxis_title="Purchase to Payout Rate (%)",
-        yaxis_title="Avg Payout ($)",
-        hovermode="closest",
+    fig.add_trace(go.Bar(
+        x=labels,
+        y=discounted_margins,
+        name="Discounted Margin",
+        marker_color="#A3C1FA",
+        hovertemplate='%{x}<br>Margin: %{y:.4f} (%{y:.2%})'
+    ))
+    fig.add_hline(y=0.5, line_dash="dash", line_color="#F2CB80", annotation_text="50% Threshold")
+    fig.update_layout(
+        title="Purchase to Payout Rate vs Avg Payout",
+        xaxis_title="Purchase to Payout Rate and Avg Payout Combinations",
+        yaxis_title="Margin",
+        yaxis_range=[-1.5, 1.2],
+        barmode='group',
+        hovermode="x unified",
+        showlegend=True,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color="#FAFAFA"),
-        xaxis=dict(gridcolor='LightGrey'),
+        xaxis=dict(gridcolor='LightGrey', tickangle=45),
         yaxis=dict(gridcolor='LightGrey')
     )
-    st.plotly_chart(fig_scatter, use_container_width=True)
-
-    # 3D Scatter Plot
-    st.subheader("3D Scatter Plot")
-    fig_3d = go.Figure()
-    fig_3d.add_trace(go.Scatter3d(
-        x=x_values,
-        y=y_values,
-        z=price_margins,
-        mode='markers',
-        marker=dict(
-            size=5,
-            color=price_margins,
-            colorscale='Plasma',
-            showscale=True,
-            colorbar=dict(title="Price Margin")
-        ),
-        text=[f"Price Margin: {pm:.4f} ({pm*100:.2f}%)<br>Discounted Margin: {dpm:.4f} ({dpm*100:.2f}%)"
-              for pm, dpm in zip(price_margins, discounted_margins)],
-        hovertemplate='Purchase to Payout Rate: %{x:.2f}%<br>Avg Payout: ${%y:.2f}<br>%{text}'
-    ))
-    fig_3d.update_layout(
-        scene=dict(
-            xaxis_title="Purchase to Payout Rate (%)",
-            yaxis_title="Avg Payout ($)",
-            zaxis_title="Price Margin",
-            xaxis=dict(gridcolor='LightGrey'),
-            yaxis=dict(gridcolor='LightGrey'),
-            zaxis=dict(gridcolor='LightGrey')
-        ),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(color="#FAFAFA")
-    )
-    st.plotly_chart(fig_3d, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
     # Find and display threshold points for aggregated simulation
     progression_values = np.linspace(0, 100, 20)
@@ -314,17 +299,16 @@ with st.expander("Scatter and 3D Views", expanded=True):
 
     # Download aggregated simulation data
     df_agg = pd.DataFrame({
-        "Purchase to Payout Rate (%)": x_values,
-        "Avg Payout ($)": y_values,
+        "Combination": labels,
         "Price Margin": price_margins,
         "Discounted Margin": discounted_margins
     })
     csv_agg = df_agg.to_csv(index=False)
     st.download_button("Download Aggregated Simulation Data", csv_agg, "aggregated_simulation.csv", "text/csv")
 
-# Combined simulation with user-selected variables
-st.header("Combined Simulation")
-with st.expander("Adjust Variables", expanded=True):
+# Combined simulation with user-selected variables (Tab 6)
+with tab6:
+    st.subheader("Combined Simulation")
     st.write("Select percentage changes for each variable (0% for no change):")
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
@@ -364,9 +348,9 @@ with st.expander("Adjust Variables", expanded=True):
     elif combined_pm < 0.5 or combined_dpm < 0.5:
         st.warning("One or both margins are below 50%.")
 
-# Extreme cases for each variable
-st.header("Extreme Case Scenarios")
-with st.expander("View Extreme Cases", expanded=False):
+# Extreme cases for each variable (Tab 7)
+with tab7:
+    st.subheader("Extreme Case Scenarios")
     st.write("Each scenario uses the extreme value for one variable while keeping others at base values:")
     extreme_scenarios = [
         ("Eval Price (-50%)", eval_price * 0.5, discount_pct, purchase_to_payout_rate, avg_payout),
