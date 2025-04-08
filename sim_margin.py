@@ -57,10 +57,10 @@ st.write(f"**Price Margin:** {base_pm:.4f} ({base_pm*100:.2f}%)")
 st.write(f"**Discounted Price Margin:** {base_dpm:.4f} ({base_dpm*100:.2f}%)")
 
 # Variation ranges with 20 steps
-eval_price_vars = [eval_price * (1 - x) for x in np.linspace(0, 0.5, 20)]  # 0% to -50% in 20 steps
-discount_pct_vars = [max(0, min(1, discount_pct * (1 + x))) for x in np.linspace(0, 0.5, 20)]  # 0% to +50% in 20 steps
-purchase_to_payout_rate_vars = [max(0, min(1, purchase_to_payout_rate * (1 + x))) for x in np.linspace(0, 0.5, 20)]  # 0% to +50% in 20 steps
-avg_payout_vars = [avg_payout * (1 + x) for x in np.linspace(0, 0.5, 20)]  # 0% to +50% in 20 steps
+eval_price_vars = [eval_price * (1 - x) for x in np.linspace(0, 0.5, 20)]  # 150 to 75
+discount_pct_vars = [max(0, min(1, discount_pct + (0.5 * x))) for x in np.linspace(0, 1, 20)]  # 30% to 80%
+purchase_to_payout_rate_vars = [max(0, min(1, purchase_to_payout_rate * (1 + 2 * x))) for x in np.linspace(0, 1, 20)]  # Base to 200% increase
+avg_payout_vars = [avg_payout * (1 + 2 * x) for x in np.linspace(0, 1, 20)]  # Base to 200% increase
 
 # Uncomment below if needed later
 # eval_pass_rate_vars = [max(0, min(1, eval_pass_rate * (1 + x))) for x in np.linspace(0, 0.5, 20)]  # 0% to +50% in 20 steps
@@ -140,9 +140,9 @@ st.header("Extreme Case Scenarios (Individual Variables)")
 st.write("Each scenario uses the extreme value for one variable while keeping others at base values:")
 extreme_scenarios = [
     ("Eval Price (-50%)", eval_price * 0.5, discount_pct, purchase_to_payout_rate, avg_payout),
-    ("Discount % (+50%)", eval_price, min(1.0, discount_pct * 1.5), purchase_to_payout_rate, avg_payout),
-    ("Purchase to Payout Rate (+50%)", eval_price, discount_pct, min(1.0, purchase_to_payout_rate * 1.5), avg_payout),
-    ("Avg Payout (+50%)", eval_price, discount_pct, purchase_to_payout_rate, avg_payout * 1.5)
+    ("Discount % (+50%)", eval_price, min(1.0, discount_pct + 0.5), purchase_to_payout_rate, avg_payout),  # +50% absolute increase
+    ("Purchase to Payout Rate (+200%)", eval_price, discount_pct, min(1.0, purchase_to_payout_rate * 3), avg_payout),
+    ("Avg Payout (+200%)", eval_price, discount_pct, purchase_to_payout_rate, avg_payout * 3)
 ]
 
 data = []
