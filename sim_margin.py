@@ -6,7 +6,7 @@ SAMPLE_SIZE = 1000
 
 # Function to get user input with validation (for regular floats)
 def get_float_input(prompt, min_val=None, max_val=None):
-    while True:-
+    while True:
         try:
             value = float(input(prompt))
             if (min_val is not None and value < min_val) or (max_val is not None and value > max_val):
