@@ -141,39 +141,57 @@ for var_name, var_values in variables:
     else:
         st.write(f"**Discounted Margin stays above 50% across the range.**")
 
-# Aggregated simulation for Purchase to Payout Rate and Avg Payout
-st.header("Aggregated Simulation: Purchase to Payout Rate and Avg Payout")
+# Aggregated simulation for Purchase to Payout Rate and Avg Payout as a Scatter Chart
+st.header("Aggregated Simulation: Purchase to Payout Rate vs Avg Payout (Scatter)")
 # Use the same variation ranges as individual simulations
 price_margins, discounted_margins = compute_aggregated_margins(
     purchase_to_payout_rate_vars, avg_payout_vars, eval_price, discount_pct
 )
-# Create an index for the x-axis (0 to 100% to represent the progression)
-x_values = np.linspace(0, 100, 20)  # 0% to 100% progression
+# For scatter plot, use Purchase to Payout Rate as x-axis and Avg Payout as y-axis
+x_values = [v * 100 for v in purchase_to_payout_rate_vars]  # Convert to percentage
+y_values = avg_payout_vars
+
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=x_values, y=price_margins, mode='lines+markers', name="Combined (Ptr & Avg Payout)",
-                         hovertemplate='Progression: %{x:.2f}%<br>Margin: %{y:.4f} (%{y:.2%})'))
-fig.add_trace(go.Scatter(x=x_values, y=discounted_margins, mode='lines+markers', name="Discounted Margin",
-                         hovertemplate='Progression: %{x:.2f}%<br>Margin: %{y:.4f} (%{y:.2%})'))
-fig.add_hline(y=0.5, line_dash="dash", line_color="red", annotation_text="50% Threshold")
+# Scatter for Price Margin
+fig.add_trace(go.Scatter(
+    x=x_values,
+    y=y_values,
+    mode='markers',
+    marker=dict(
+        size=10,
+        color=price_margins,
+        colorscale='Viridis',
+        showscale=True,
+        colorbar=dict(title="Price Margin"),
+        cmin=0,
+        cmax=1
+    ),
+    name="Price Margin",
+    text=[f"Price Margin: {pm:.4f} ({pm*100:.2f}%)<br>Discounted Margin: {dpm:.4f} ({dpm*100:.2f}%)"
+          for pm, dpm in zip(price_margins, discounted_margins)],
+    hovertemplate='Purchase to Payout Rate: %{x:.2f}%<br>Avg Payout: ${%y:.2f}<br>%{text}'
+))
+# Add a line at 50% margin threshold (approximated by coloring, not a direct line in scatter)
 fig.update_layout(
-    title="Effect of Combined Purchase to Payout Rate and Avg Payout on Margins",
-    xaxis_title="Progression (%)",
-    yaxis_title="Margin",
-    yaxis_range=[0, 1.2],
-    hovermode="x unified"
+    title="Scatter: Purchase to Payout Rate vs Avg Payout (Color by Price Margin)",
+    xaxis_title="Purchase to Payout Rate (%)",
+    yaxis_title="Avg Payout ($)",
+    hovermode="closest"
 )
 st.plotly_chart(fig)
 
 # Find and display threshold points for aggregated simulation
-price_threshold, discounted_threshold = find_margin_threshold("Combined (Ptr & Avg Payout)", x_values, price_margins, discounted_margins)
+# Use progression for consistency with previous version
+progression_values = np.linspace(0, 100, 20)
+price_threshold, discounted_threshold = find_margin_threshold("Combined (Ptr & Avg Payout)", progression_values, price_margins, discounted_margins)
 if price_threshold is not None:
-    st.write(f"**Combined (Ptr & Avg Payout) Margin falls to or below 50% at progression:** {price_threshold:.2f}%")
+    st.write(f"**Combined (Ptr & Avg Payout) Price Margin falls to or below 50% at progression:** {price_threshold:.2f}%")
 else:
-    st.write(f"**Combined (Ptr & Avg Payout) Margin stays above 50% across the range.**")
+    st.write(f"**Combined (Ptr & Avg Payout) Price Margin stays above 50% across the range.**")
 if discounted_threshold is not None:
-    st.write(f"**Discounted Margin falls to or below 50% at progression:** {discounted_threshold:.2f}%")
+    st.write(f"**Combined (Ptr & Avg Payout) Discounted Margin falls to or below 50% at progression:** {discounted_threshold:.2f}%")
 else:
-    st.write(f"**Discounted Margin stays above 50% across the range.**")
+    st.write(f"**Combined (Ptr & Avg Payout) Discounted Margin stays above 50% across the range.**")
 
 # Combined simulation with user-selected variables
 st.header("Combined Simulation")
