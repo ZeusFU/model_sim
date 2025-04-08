@@ -34,6 +34,29 @@ def compute_margins_for_variable(var_name, var_values, eval_price, discount_pct,
         discounted_margins.append(dpm)
     return price_margins, discounted_margins
 
+# Function to compute aggregated margins for Purchase to Payout Rate and Avg Payout
+def compute_aggregated_margins(purchase_to_payout_vars, avg_payout_vars, eval_price, discount_pct):
+    price_margins = []
+    discounted_margins = []
+    for ptr, ap in zip(purchase_to_payout_vars, avg_payout_vars):
+        pm, dpm = calculate_margins(eval_price, discount_pct, ptr, ap)
+        price_margins.append(pm)
+        discounted_margins.append(dpm)
+    return price_margins, discounted_margins
+
+# Function to find the first point where margin falls below 50%
+def find_margin_threshold(var_name, var_values, price_margins, discounted_margins):
+    price_threshold = None
+    discounted_threshold = None
+    for i, (pm, dpm) in enumerate(zip(price_margins, discounted_margins)):
+        if pm <= 0.5 and price_threshold is None:
+            price_threshold = var_values[i]
+        if dpm <= 0.5 and discounted_threshold is None:
+            discounted_threshold = var_values[i]
+        if price_threshold is not None and discounted_threshold is not None:
+            break
+    return price_threshold, discounted_threshold
+
 # Streamlit app
 st.title("Interactive Margin Simulator")
 
@@ -93,9 +116,9 @@ for var_name, var_values in variables:
     # Plotly figure
     fig = go.Figure()
     x_values = [v * 100 if var_name in ["Discount %", "Purchase to Payout Rate"] else v for v in var_values]
-    fig.add_trace(go.Scatter(x=x_values, y=price_margins, mode='lines+markers', name='Price Margin',
+    fig.add_trace(go.Scatter(x=x_values, y=price_margins, mode='lines+markers', name=var_name,
                              hovertemplate='%{x:.2f}<br>Margin: %{y:.4f} (%{y:.2%})'))
-    fig.add_trace(go.Scatter(x=x_values, y=discounted_margins, mode='lines+markers', name='Discounted Price Margin',
+    fig.add_trace(go.Scatter(x=x_values, y=discounted_margins, mode='lines+markers', name="Discounted Margin",
                              hovertemplate='%{x:.2f}<br>Margin: %{y:.4f} (%{y:.2%})'))
     fig.add_hline(y=0.5, line_dash="dash", line_color="red", annotation_text="50% Threshold")
     fig.update_layout(
@@ -106,6 +129,51 @@ for var_name, var_values in variables:
         hovermode="x unified"
     )
     st.plotly_chart(fig)
+
+    # Find and display threshold points
+    price_threshold, discounted_threshold = find_margin_threshold(var_name, x_values, price_margins, discounted_margins)
+    if price_threshold is not None:
+        st.write(f"**{var_name} Margin falls to or below 50% at:** {price_threshold:.2f}{' %' if var_name in ['Discount %', 'Purchase to Payout Rate'] else ''}")
+    else:
+        st.write(f"**{var_name} Margin stays above 50% across the range.**")
+    if discounted_threshold is not None:
+        st.write(f"**Discounted Margin falls to or below 50% at:** {discounted_threshold:.2f}{' %' if var_name in ['Discount %', 'Purchase to Payout Rate'] else ''}")
+    else:
+        st.write(f"**Discounted Margin stays above 50% across the range.**")
+
+# Aggregated simulation for Purchase to Payout Rate and Avg Payout
+st.header("Aggregated Simulation: Purchase to Payout Rate and Avg Payout")
+# Use the same variation ranges as individual simulations
+price_margins, discounted_margins = compute_aggregated_margins(
+    purchase_to_payout_rate_vars, avg_payout_vars, eval_price, discount_pct
+)
+# Create an index for the x-axis (0 to 100% to represent the progression)
+x_values = np.linspace(0, 100, 20)  # 0% to 100% progression
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=x_values, y=price_margins, mode='lines+markers', name="Combined (Ptr & Avg Payout)",
+                         hovertemplate='Progression: %{x:.2f}%<br>Margin: %{y:.4f} (%{y:.2%})'))
+fig.add_trace(go.Scatter(x=x_values, y=discounted_margins, mode='lines+markers', name="Discounted Margin",
+                         hovertemplate='Progression: %{x:.2f}%<br>Margin: %{y:.4f} (%{y:.2%})'))
+fig.add_hline(y=0.5, line_dash="dash", line_color="red", annotation_text="50% Threshold")
+fig.update_layout(
+    title="Effect of Combined Purchase to Payout Rate and Avg Payout on Margins",
+    xaxis_title="Progression (%)",
+    yaxis_title="Margin",
+    yaxis_range=[0, 1.2],
+    hovermode="x unified"
+)
+st.plotly_chart(fig)
+
+# Find and display threshold points for aggregated simulation
+price_threshold, discounted_threshold = find_margin_threshold("Combined (Ptr & Avg Payout)", x_values, price_margins, discounted_margins)
+if price_threshold is not None:
+    st.write(f"**Combined (Ptr & Avg Payout) Margin falls to or below 50% at progression:** {price_threshold:.2f}%")
+else:
+    st.write(f"**Combined (Ptr & Avg Payout) Margin stays above 50% across the range.**")
+if discounted_threshold is not None:
+    st.write(f"**Discounted Margin falls to or below 50% at progression:** {discounted_threshold:.2f}%")
+else:
+    st.write(f"**Discounted Margin stays above 50% across the range.**")
 
 # Combined simulation with user-selected variables
 st.header("Combined Simulation")
